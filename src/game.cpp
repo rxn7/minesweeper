@@ -3,13 +3,25 @@
 #include <cassert>
 #include <iostream>
 #include <random>
+#include <sstream>
 
 static const sf::VideoMode videoMode(sf::Vector2u(640u, 480u));
 
-Game::Game() : m_VertexArray(sf::PrimitiveType::Triangles, 500), m_View(VIEW_SIZE * 0.5f, VIEW_SIZE) {
+Game::Game() : m_VertexArray(sf::PrimitiveType::Triangles, 500), m_GridView(VIEW_SIZE * 0.5f, VIEW_SIZE), m_Sound(m_RevealSoundBuffer), m_GameOverText(m_Font) {
 	m_Window.create(videoMode, "Minesweeper");
-	m_Window.setView(m_View);
+	m_Window.setView(m_GridView);
+
+	assert(m_Font.loadFromFile("assets/CozetteVector.ttf"));
+	m_Font.setSmooth(false);
+
+	m_GameOverText.setOutlineThickness(5.0f);
+	m_GameOverText.setCharacterSize(64);
+
 	assert(m_Texture.loadFromFile("assets/textures.png"));
+	assert(m_RevealSoundBuffer.loadFromFile("assets/audio/reveal.ogg"));
+	assert(m_ExplosionSoundBuffer.loadFromFile("assets/audio/explosion.ogg"));
+	assert(m_FlagSoundBuffer.loadFromFile("assets/audio/flag.ogg"));
+
 	m_Texture.setSmooth(false);
 	rebuild_va();
 
@@ -22,19 +34,19 @@ Game::Game() : m_VertexArray(sf::PrimitiveType::Triangles, 500), m_View(VIEW_SIZ
 					break;
 
 				case sf::Event::MouseButtonPressed: {
+					m_Window.setView(m_GridView);
 					const sf::Vector2f mousePos = m_Window.mapPixelToCoords(sf::Vector2i(ev.mouseButton.x, ev.mouseButton.y));
-					const sf::Vector2u cellPos(mousePos.x / m_View.getSize().x * GRID_WIDTH, mousePos.y / m_View.getSize().y * GRID_HEIGHT);
+					const sf::Vector2u cellPos(mousePos.x / m_GridView.getSize().x * GRID_WIDTH, mousePos.y / m_GridView.getSize().y * GRID_HEIGHT);
 
-					if(m_IsGameOver) {
-						m_IsGameOver = false;
+					if(m_State != GameState::Playing) {
 						generate_bombs(cellPos.x, cellPos.y);
+						m_State = GameState::Playing;
 						break;
 					}
 
 					if(!m_BombsGenerated) {
 						generate_bombs(cellPos.x, cellPos.y);
 					}
-
 
 					CellState &cell = get_cell_at(cellPos.x, cellPos.y);
 
@@ -44,19 +56,33 @@ Game::Game() : m_VertexArray(sf::PrimitiveType::Triangles, 500), m_View(VIEW_SIZ
 								break;
 
 							if(cell.isMine) {
-								game_over();
+								play_sound(m_ExplosionSoundBuffer);
+								game_over(GameState::Lost);
 								break;
 							}
 
+							if(cell.isRevealed)  {
+								break;
+							}
+
+							// m_Sound.play();
+							play_sound(m_RevealSoundBuffer);
+
 							cell.isRevealed = true;
 							propagate_reveal(cellPos.x, cellPos.y);
+							check_win();
 							rebuild_va();
 							
 							break;
 						}
 
 						case sf::Mouse::Button::Right: {
+							if(cell.isRevealed) {
+								break;
+							}
+
 							cell.isFlagged ^= 1;
+							play_sound(m_FlagSoundBuffer);
 							rebuild_va();
 							break;
 
@@ -69,7 +95,7 @@ Game::Game() : m_VertexArray(sf::PrimitiveType::Triangles, 500), m_View(VIEW_SIZ
 				}
 
 				case sf::Event::Resized: {
-					// TODO: 
+					// TODO: letterboxing :(
 					// const float winRatio = ev.size.width / (float)ev.size.height;
 					// const float viewRatio = m_View.getSize().x / (float)m_View.getSize().y;
 					// sf::Vector2f size;
@@ -85,7 +111,9 @@ Game::Game() : m_VertexArray(sf::PrimitiveType::Triangles, 500), m_View(VIEW_SIZ
 					//
 					// m_View.setSize(size);
 					// m_View.setCenter(position);
-					m_Window.setView(m_View);
+					m_ViewUI.setSize(sf::Vector2f(m_Window.getSize()));
+					m_ViewUI.setCenter(sf::Vector2f(0.0f, 0.0f));
+					m_GameOverText.setScale(sf::Vector2f(1.0f, 1.0f) * m_ViewUI.getSize().x / 1000.0f);
 					break;
 				}
 
@@ -96,7 +124,15 @@ Game::Game() : m_VertexArray(sf::PrimitiveType::Triangles, 500), m_View(VIEW_SIZ
 		}
 
         m_Window.clear(sf::Color(200, 200, 200));
+
+		m_Window.setView(m_GridView);
 		m_Window.draw(m_VertexArray, &m_Texture);
+
+		m_Window.setView(m_ViewUI);
+		if(m_State != GameState::Playing) {
+			m_Window.draw(m_GameOverText);
+		}
+
         m_Window.display();
 	}
 }
@@ -156,6 +192,23 @@ void Game::generate_bombs(const std::uint32_t ignoreX, const std::uint32_t ignor
 	rebuild_va();
 }
 
+void Game::check_win() {
+	for(const CellState &cell : m_Cells) {
+		if(!cell.isMine && !cell.isRevealed) {
+			return;
+		}
+	}
+
+	// WIN
+	game_over(GameState::Win);
+}
+
+void Game::play_sound(const sf::SoundBuffer &buffer) {
+	m_Sound.setBuffer(buffer);
+	m_Sound.setPitch(0.9f + (static_cast<float>(rand()) / RAND_MAX * 0.2f));
+	m_Sound.play();
+}
+
 void Game::propagate_reveal(const std::uint32_t x, const std::uint32_t y) {
 	for(std::int32_t offX = -1; offX <= 1; ++offX) {
 		for(std::int32_t offY = -1; offY <= 1; ++offY) {
@@ -179,14 +232,34 @@ void Game::propagate_reveal(const std::uint32_t x, const std::uint32_t y) {
 	}
 }
 
-void Game::game_over() {
-	m_IsGameOver = true;
+void Game::game_over(GameState newState) {
+	m_State = newState;
 	m_BombsGenerated = false;
 	for(CellState &cell : m_Cells) {
 		if(!cell.isFlagged && cell.isMine) {
 			cell.isRevealed = true;
 		}
 	}
+
+	std::ostringstream ss;
+	switch(newState) {
+		case GameState::Win:
+			ss << "You win!";
+			break;
+
+		case GameState::Lost:
+			ss << "You lost!";
+			break;
+
+		default:
+			break;
+	}
+
+	ss << "\nClick anywhere to play again";
+	m_GameOverText.setString(ss.str());
+
+	m_GameOverText.setOrigin(m_GameOverText.getLocalBounds().getSize() * 0.5f);
+
 	rebuild_va();
 }
 
@@ -221,7 +294,7 @@ void Game::rebuild_va() {
 }
 
 void Game::add_cell_vertex(std::uint32_t x, std::uint32_t y, const uint32_t spriteIdx) {
-	const sf::Vector2f cellSize(m_View.getSize().x / GRID_WIDTH, m_View.getSize().y / GRID_HEIGHT);
+	const sf::Vector2f cellSize(m_GridView.getSize().x / GRID_WIDTH, m_GridView.getSize().y / GRID_HEIGHT);
 	x *= cellSize.x;
 	y *= cellSize.y;
 
