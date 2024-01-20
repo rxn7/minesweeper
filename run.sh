@@ -2,5 +2,5 @@
 
 cmake --build build
 pushd build
-./minesweeper
+./minesweeper $@
 popd

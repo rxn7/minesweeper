@@ -1,5 +1,4 @@
 #include "game.hpp"
-#include "SFML/System/Vector2.hpp"
 #include <cassert>
 #include <iostream>
 #include <random>
@@ -7,7 +6,12 @@
 
 static const sf::VideoMode videoMode(sf::Vector2u(640u, 480u));
 
-Game::Game() : m_VertexArray(sf::PrimitiveType::Triangles, 500), m_GridView(VIEW_SIZE * 0.5f, VIEW_SIZE), m_Sound(m_RevealSoundBuffer), m_GameOverText(m_Font) {
+Game::Game(const std::uint32_t gridWidth, const std::uint32_t gridHeight, const std::uint32_t mineCount) : m_VertexArray(sf::PrimitiveType::Triangles, 500), m_Sound(m_RevealSoundBuffer), m_GameOverText(m_Font), m_GridWidth(gridWidth), m_GridHeight(gridHeight), m_MineCount(mineCount), m_Cells(new CellState[gridWidth * gridHeight]) {
+	assert(m_MineCount < get_grid_size());
+	std::fill(m_Cells, m_Cells + get_grid_size(), CellState{});
+}
+
+void Game::start() {
 	m_Window.create(videoMode, "Minesweeper");
 	m_Window.setView(m_GridView);
 
@@ -23,7 +27,7 @@ Game::Game() : m_VertexArray(sf::PrimitiveType::Triangles, 500), m_GridView(VIEW
 	assert(m_FlagSoundBuffer.loadFromFile("assets/audio/flag.ogg"));
 
 	m_Texture.setSmooth(false);
-	rebuild_va();
+	regenerate_vertices();
 
 	while (m_Window.isOpen()) {
 		sf::Event ev;
@@ -36,16 +40,16 @@ Game::Game() : m_VertexArray(sf::PrimitiveType::Triangles, 500), m_GridView(VIEW
 				case sf::Event::MouseButtonPressed: {
 					m_Window.setView(m_GridView);
 					const sf::Vector2f mousePos = m_Window.mapPixelToCoords(sf::Vector2i(ev.mouseButton.x, ev.mouseButton.y));
-					const sf::Vector2u cellPos(mousePos.x / m_GridView.getSize().x * GRID_WIDTH, mousePos.y / m_GridView.getSize().y * GRID_HEIGHT);
+					const sf::Vector2u cellPos(mousePos.x / m_GridView.getSize().x * m_GridWidth, mousePos.y / m_GridView.getSize().y * m_GridHeight);
 
 					if(m_State != GameState::Playing) {
-						generate_bombs(cellPos.x, cellPos.y);
+						generate_mines(cellPos.x, cellPos.y);
 						m_State = GameState::Playing;
 						break;
 					}
 
-					if(!m_BombsGenerated) {
-						generate_bombs(cellPos.x, cellPos.y);
+					if(!m_MinesGenerated) {
+						generate_mines(cellPos.x, cellPos.y);
 					}
 
 					CellState &cell = get_cell_at(cellPos.x, cellPos.y);
@@ -65,13 +69,12 @@ Game::Game() : m_VertexArray(sf::PrimitiveType::Triangles, 500), m_GridView(VIEW
 								break;
 							}
 
-							// m_Sound.play();
 							play_sound(m_RevealSoundBuffer);
 
 							cell.isRevealed = true;
 							propagate_reveal(cellPos.x, cellPos.y);
 							check_win();
-							rebuild_va();
+							regenerate_vertices();
 							
 							break;
 						}
@@ -83,7 +86,7 @@ Game::Game() : m_VertexArray(sf::PrimitiveType::Triangles, 500), m_GridView(VIEW
 
 							cell.isFlagged ^= 1;
 							play_sound(m_FlagSoundBuffer);
-							rebuild_va();
+							regenerate_vertices();
 							break;
 
 					    }
@@ -137,19 +140,19 @@ Game::Game() : m_VertexArray(sf::PrimitiveType::Triangles, 500), m_GridView(VIEW
 	}
 }
 
-void Game::generate_bombs(const std::uint32_t ignoreX, const std::uint32_t ignoreY) {
-	m_BombsGenerated = true;
+void Game::generate_mines(const std::uint32_t ignoreX, const std::uint32_t ignoreY) {
+	m_MinesGenerated = true;
 
-	std::fill(m_Cells.begin(), m_Cells.end(), CellState{});
+	std::fill(m_Cells, m_Cells + get_grid_size(), CellState{});
 
 	std::mt19937 mt(std::time(nullptr));
-	std::uniform_int_distribution<std::uint32_t> dist(0, GRID_WIDTH*GRID_HEIGHT);
+	std::uniform_int_distribution<std::uint32_t> dist(0, m_GridWidth*m_GridHeight);
 
-	std::uint32_t bombsRemaining = MINE_COUNT; 
-	while(bombsRemaining != 0) {
+	std::uint32_t minesRemaining = m_MineCount; 
+	while(minesRemaining != 0) {
 		const std::uint32_t idx = dist(mt);
-		const std::uint32_t x = idx % GRID_WIDTH;
-		const std::uint32_t y = idx / GRID_WIDTH;
+		const std::uint32_t x = idx % m_GridWidth;
+		const std::uint32_t y = idx / m_GridWidth;
 
 		if(x == ignoreX && y == ignoreY) {
 			continue;
@@ -168,44 +171,34 @@ void Game::generate_bombs(const std::uint32_t ignoreX, const std::uint32_t ignor
 				const std::int32_t checkX = x + offX;
 				const std::int32_t checkY = y + offY;
 
-				if((offX == 0 && offY == 0) || checkX < 0 || checkX >= GRID_WIDTH || checkY < 0 || checkY >= GRID_HEIGHT) {
+				if((offX == 0 && offY == 0) || checkX < 0 || checkX >= m_GridWidth || checkY < 0 || checkY >= m_GridHeight) {
 					continue;
 				}
 
 				get_cell_at(checkX, checkY).neighbouringMines++;
 			}
 		}
-		bombsRemaining--;
+
+		minesRemaining--;
 	}
 
-	for(std::uint32_t y = 0; y < GRID_HEIGHT; ++y) {
-		for(std::uint32_t x = 0; x < GRID_WIDTH; ++x) {
-			if(get_cell_at(x,y).isMine) {
-				putc('#', stdout);
-			} else {
-				putc(' ', stdout);
-			}
-		}
-		putc('\n', stdout);
-	}
-
-	rebuild_va();
+	regenerate_vertices();
 }
 
 void Game::check_win() {
-	for(const CellState &cell : m_Cells) {
+	for(std::uint32_t i=0; i<get_grid_size(); ++i) {
+		CellState &cell = m_Cells[i];
 		if(!cell.isMine && !cell.isRevealed) {
 			return;
 		}
 	}
 
-	// WIN
 	game_over(GameState::Win);
 }
 
 void Game::play_sound(const sf::SoundBuffer &buffer) {
 	m_Sound.setBuffer(buffer);
-	m_Sound.setPitch(0.9f + (static_cast<float>(rand()) / RAND_MAX * 0.2f));
+	m_Sound.setPitch(0.9f + (rand() / static_cast<float>(RAND_MAX) * 0.2f));
 	m_Sound.play();
 }
 
@@ -215,7 +208,7 @@ void Game::propagate_reveal(const std::uint32_t x, const std::uint32_t y) {
 			const std::int32_t cellY = y + offY;
 			const std::int32_t cellX = x + offX;
 
-			if((offX == 0 && offY == 0) || cellX < 0 || cellX >= GRID_WIDTH || cellY < 0 || cellY >= GRID_HEIGHT) {
+			if((offX == 0 && offY == 0) || cellX < 0 || cellX >= m_GridWidth || cellY < 0 || cellY >= m_GridHeight) {
 				continue;
 			}
 
@@ -234,8 +227,10 @@ void Game::propagate_reveal(const std::uint32_t x, const std::uint32_t y) {
 
 void Game::game_over(GameState newState) {
 	m_State = newState;
-	m_BombsGenerated = false;
-	for(CellState &cell : m_Cells) {
+	m_MinesGenerated = false;
+
+	for(std::uint32_t i = 0; i<get_grid_size(); ++i) {
+		CellState &cell = m_Cells[i];
 		if(!cell.isFlagged && cell.isMine) {
 			cell.isRevealed = true;
 		}
@@ -254,20 +249,19 @@ void Game::game_over(GameState newState) {
 		default:
 			break;
 	}
-
 	ss << "\nClick anywhere to play again";
-	m_GameOverText.setString(ss.str());
 
+	m_GameOverText.setString(ss.str());
 	m_GameOverText.setOrigin(m_GameOverText.getLocalBounds().getSize() * 0.5f);
 
-	rebuild_va();
+	regenerate_vertices();
 }
 
-void Game::rebuild_va() {
+void Game::regenerate_vertices() {
 	m_VertexArray.clear();
 	
-	for(std::uint32_t y = 0; y < GRID_HEIGHT; ++y) {
-		for(std::uint32_t x = 0; x < GRID_WIDTH; ++x) {
+	for(std::uint32_t y = 0; y < m_GridHeight; ++y) {
+		for(std::uint32_t x = 0; x < m_GridWidth; ++x) {
 			const CellState &cellState = get_cell_at(x, y);
 
 			if(cellState.isRevealed) {
@@ -294,7 +288,7 @@ void Game::rebuild_va() {
 }
 
 void Game::add_cell_vertex(std::uint32_t x, std::uint32_t y, const uint32_t spriteIdx) {
-	const sf::Vector2f cellSize(m_GridView.getSize().x / GRID_WIDTH, m_GridView.getSize().y / GRID_HEIGHT);
+	const sf::Vector2f cellSize(m_GridView.getSize().x / m_GridWidth, m_GridView.getSize().y / m_GridHeight);
 	x *= cellSize.x;
 	y *= cellSize.y;
 
