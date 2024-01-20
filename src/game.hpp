@@ -18,7 +18,7 @@ private:
 	std::uint32_t count_neighbouring_bombs(const std::uint32_t x, const std::uint32_t y);
 
 	inline CellState &cell_at(const std::uint32_t x, const std::uint32_t y) {
-		return m_Cells[y * GRID_HEIGHT + x];
+		return m_Cells[y * GRID_WIDTH + x];
 	}
 
 private:
