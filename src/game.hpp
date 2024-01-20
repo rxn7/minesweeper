@@ -16,6 +16,7 @@ enum GameState { Playing, Lost, Win };
 class Game {
 public:
 	Game(const std::uint32_t gridWidth, const std::uint32_t gridHeight, const std::uint32_t mineCount);
+	~Game();
 	void start();
 
 private:

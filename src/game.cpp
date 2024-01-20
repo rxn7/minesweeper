@@ -11,6 +11,10 @@ Game::Game(const std::uint32_t gridWidth, const std::uint32_t gridHeight, const 
 	std::fill(m_Cells, m_Cells + get_grid_size(), CellState{});
 }
 
+Game::~Game() {
+	delete[] m_Cells;
+}
+
 void Game::start() {
 	m_Window.create(videoMode, "Minesweeper");
 	m_Window.setView(m_GridView);
