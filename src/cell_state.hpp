@@ -1,7 +1,10 @@
 #pragma once
 
+#include <cstdint>
+
 struct CellState {
 	bool isRevealed = false;
-	bool hasBomb = false;
-	bool hasFlag = false;
+	bool isMine = false;
+	bool isFlagged = false;
+	std::uint8_t neighbouringMines = 0;
 };
