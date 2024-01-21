@@ -1,5 +1,5 @@
-#include <iostream>
 #include "game.hpp"
+#include <iostream>
 
 #define REDFLAG_IMPLEMENTATION
 #include "redflag.h"

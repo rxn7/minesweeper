@@ -3,8 +3,8 @@
 #include <cstdint>
 
 struct CellState {
-	bool isRevealed = false;
-	bool isMine = false;
-	bool isFlagged = false;
-	std::uint8_t neighbouringMines = 0;
+	bool isFlagged : 1 = false;
+	bool isMine : 1 = false;
+	bool isRevealed : 1 = false;
+	std::uint8_t neighboringMines : 4 = 0u;
 };

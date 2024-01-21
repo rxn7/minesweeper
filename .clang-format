@@ -1,0 +1,36 @@
+﻿---
+AccessModifierOffset: '-4'
+AllowShortFunctionsOnASingleLine: 'true'
+ColumnLimit: '200'
+CompactNamespaces: 'false'
+IndentWidth: '4'
+KeepEmptyLinesAtTheStartOfBlocks: 'false'
+MaxEmptyLinesToKeep: '1'
+NamespaceIndentation: All
+PenaltyBreakAssignment: '0'
+PenaltyBreakBeforeFirstCallParameter: '0'
+PenaltyBreakComment: '0'
+PenaltyBreakFirstLessLess: '0'
+PenaltyBreakString: '0'
+PenaltyBreakTemplateDeclaration: '0'
+PenaltyExcessCharacter: '0'
+PenaltyReturnTypeOnItsOwnLine: '0'
+PointerAlignment: Right
+SortUsingDeclarations: 'false'
+SpaceAfterCStyleCast: 'false'
+SpaceAfterLogicalNot: 'false'
+SpaceAfterTemplateKeyword: 'false'
+SpaceBeforeAssignmentOperators: 'true'
+SpaceBeforeCtorInitializerColon: 'true'
+SpaceBeforeInheritanceColon: 'true'
+SpaceBeforeParens: Never
+SpaceBeforeRangeBasedForLoopColon: 'true'
+SpacesBeforeTrailingComments: '0'
+TabWidth: '4'
+UseTab: Always
+BreakConstructorInitializersBeforeComma: false
+BreakConstructorInitializers: AfterColon
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+PackConstructorInitializers: NextLine
+
+...
