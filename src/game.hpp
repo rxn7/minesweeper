@@ -39,7 +39,6 @@ private:
 	[[nodiscard]] inline std::uint32_t get_grid_size() const { return m_GridWidth * m_GridHeight; }
 
 	[[nodiscard]] inline CellState &get_cell_at(const std::uint32_t x, const std::uint32_t y) {
-		assert(is_valid_cell(x, y));
 		return m_Cells[y * m_GridWidth + x];
 	}
 

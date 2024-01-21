@@ -193,6 +193,10 @@ void Game::handle_event(const sf::Event &event) {
 		const sf::Vector2f mousePos = m_Window.mapPixelToCoords(sf::Vector2i(event.mouseButton.x, event.mouseButton.y));
 		const sf::Vector2u cellPos(mousePos.x / m_GridView.getSize().x * m_GridWidth, mousePos.y / m_GridView.getSize().y * m_GridHeight);
 
+		if(!is_valid_cell(cellPos.x, cellPos.y)) {
+			break;
+		}
+
 		if(m_State != GameState::Playing) {
 			generate_mines(cellPos.x, cellPos.y);
 			m_State = GameState::Playing;
