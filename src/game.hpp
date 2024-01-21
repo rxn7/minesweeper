@@ -29,6 +29,7 @@ private:
 	void play_sound(const sf::SoundBuffer &buffer);
 
 	void handle_event(const sf::Event &event);
+	void resize_view();
 
 	void regenerate_vertices();
 	void add_cell_vertex(std::uint32_t x, std::uint32_t y, const uint32_t spriteIdx);
@@ -46,6 +47,7 @@ private:
 
 private:
 	static constexpr std::uint32_t TEXTURE_ATLAS_SPRITE_SIZE = 16;
+	static constexpr float CELL_SIZE = 1.0f;
 
 	Audio m_Audio;
 	sf::Sound m_Sound;
