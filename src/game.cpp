@@ -197,6 +197,7 @@ void Game::handle_event(const sf::Event &event) {
 			break;
 		}
 
+		// If in end game screen 
 		if(m_State != GameState::Playing) {
 			generate_mines(cellPos.x, cellPos.y);
 			m_State = GameState::Playing;
